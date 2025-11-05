@@ -1,6 +1,6 @@
 # queuectl 🏗️ Architecture Overview
 
-`queuectl` — a CLI-based background job queue system built in Node.js.
+`QueueCTL` — a CLI-based background job queue system built in Node.js.
 
 It manages shell-command `jobs`, persists them to `SQLite`, executes them in parallel using `worker pools`, retries failures with `exponential backoff`, and moves unrecoverable jobs to a Dead Letter Queue `(DLQ)`.
 
@@ -65,8 +65,8 @@ It manages shell-command `jobs`, persists them to `SQLite`, executes them in par
 - Run automated test:
 
   ```bash
-    git clone <repo-url> queuectl
-    cd queuectl
+    chmod +x scripts/test_basic_flow.sh
+    ./scripts/test_basic_flow.sh
   ```
 
 ## ⚙️ Environment Variables
@@ -118,8 +118,8 @@ This repository will be developed incrementally. This is the **Step 1** snapshot
 1. Clone the repo and enter folder:
 
    ```bash
-   git clone <repo-url> queuectl
-   cd queuectl
+   git clone <repo-url> Queue-Control-CLI
+   cd Queue-Control-CLI
    ```
 
 2. Install dependencies:
