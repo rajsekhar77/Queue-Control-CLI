@@ -1,0 +1,22 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "CLI-based background job queue system called queuectl",
+  "type": "module",
+  "bin": {
+    "queuectl": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node ./src/cli.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Raja Sekhar",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "commander": "^14.0.2",
+    "dotenv": "^17.2.3",
+    "uuid": "^13.0.0",
+    "winston": "^3.18.3"
+  }
+}
