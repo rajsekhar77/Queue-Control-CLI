@@ -6,6 +6,7 @@ import { initDb } from "./storage.js";
 import { getPendingJobs } from "./jobManager.js";
 import { handleEnqueue } from "./commands/enqueue.js";
 import { startWorkerPool } from "./worker.js";
+import { handleDlqList, handleDlqPurge } from "./commands/dlq.js";
 
 const program = new Command();
 
@@ -59,12 +60,19 @@ program
   });
 
 // --- DLQ COMMAND (placeholder) ---
-program
+const dlq = program
   .command("dlq")
-  .description("DLQ management (list, purge) — coming soon.")
-  .action(() => {
-    console.log("dlq commands coming in Step 6.");
-  });
+  .description("DLQ management (list, purge) — coming soon.");
+
+dlq
+  .command("list")
+  .description("List jobs currently in the DLQ")
+  .action(() => handleDlqList());
+
+dlq
+  .command("purge")
+  .description("Delete all DLQ entries (with confirmation)")
+  .action(() => handleDlqPurge());
 
 // --- CONFIG COMMAND ---
 program

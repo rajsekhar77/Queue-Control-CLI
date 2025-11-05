@@ -170,3 +170,22 @@ After the maximum retries (`max_retries`) are exceeded, the job is moved to the 
               │ No → Move to DLQ │
               └──────────────────┘
 ```
+
+## Dead Letter Queue (Step 6)
+
+Jobs that fail after all retry attempts are moved to the **Dead Letter Queue (DLQ)**.
+
+These jobs are stored in the `dlq` table with their last error, number of attempts, and timestamps.
+
+### View DLQ jobs
+
+```bash
+queuectl dlq list
+```
+
+### Purge DLQ
+
+```bash
+queuectl dlq purge
+```
+
