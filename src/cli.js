@@ -5,6 +5,7 @@ import { logger } from "./logger.js";
 import { initDb } from "./storage.js";
 import { getPendingJobs } from "./jobManager.js";
 import { handleEnqueue } from "./commands/enqueue.js";
+import { startWorkerPool } from "./worker.js";
 
 const program = new Command();
 
@@ -33,11 +34,11 @@ program
 // --- RUN COMMAND ---
 program
   .command("run")
-  .description("Run workers to process jobs.")
-  .option("--workers <n>", "number of worker loops to start", "1")
-  .action((opts) => {
+  .description("Run workers to process jobs in parallel.")
+  .option("--workers <n>", "Number of concurrent workers", "1")
+  .action(async (opts) => {
     const workers = Number(opts.workers || 1);
-    console.log(`Run command invoked (stub). Workers=${workers}`);
+    await startWorkerPool({ workers });
   });
 
 // --- STATUS COMMAND ---

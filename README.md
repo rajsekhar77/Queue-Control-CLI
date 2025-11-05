@@ -21,12 +21,14 @@ This repository will be developed incrementally. This is the **Step 1** snapshot
 ## 🛠️ Setup
 
 1. Clone the repo and enter folder:
+
    ```bash
    git clone <repo-url> queuectl
    cd queuectl
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    ```
@@ -34,21 +36,25 @@ This repository will be developed incrementally. This is the **Step 1** snapshot
 3. CLI usage examples
 
 - Show help:
+
   ```bash
   queuectl --help
   ```
 - Enqueue a job (example):
+
   ```bash
   queuectl enqueue "echo 'Hello world'" --max-retries=3
   ```
 - Show configuration:
+
   ```bash
   queuectl config
   ```
 - Show pending jobs (basic preview):
+
   ```bash
   queuectl status
-```
+  ```
 
 ## Database / Persistence (Step 2)
 
@@ -87,3 +93,10 @@ This repository will be developed incrementally. This is the **Step 1** snapshot
 
 These will be used by the job manager and worker implementations in subsequent steps.
 
+## Worker Pool (Step 4)
+
+Run workers to process queued jobs.
+
+```bash
+queuectl run --workers=3
+````
