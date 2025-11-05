@@ -1,5 +1,5 @@
 // src/jobManager.js
-import { getDb, initDb } from "./storage.js";
+import * as storage from "./storage.js";
 import { v4 as uuidv4 } from "uuid";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
@@ -8,88 +8,60 @@ import { logger } from "./logger.js";
  * Enqueue a shell command as a job.
  * Returns the job id.
  */
-export function enqueueJob({ command, max_retries = config.DEFAULT_MAX_RETRIES }) {
-  const db = getDb();
+export function enqueueJob({ command, max_retries = config.DEFAULT_MAX_RETRIES, next_run_at = null }) {
   const id = uuidv4();
-  const now = Math.floor(Date.now() / 1000);
-
-  const stmt = db.prepare(`
-    INSERT INTO jobs (id, command, max_retries, state, created_at, updated_at, next_run_at)
-    VALUES (@id, @command, @max_retries, 'pending', @now, @now, @now)
-  `);
-
-  stmt.run({
-    id,
-    command,
-    max_retries,
-    now
-  });
-
+  storage.insertJob({ id, command, max_retries, next_run_at });
   logger.info(`Enqueued job ${id}: ${command}`);
   return id;
 }
 
 /**
- * Fetch pending jobs eligible to run (next_run_at <= now) limit 1.
- * Note: This is a basic fetch; claiming/locking should be done with an atomic UPDATE in worker logic.
+ * Get pending jobs (snapshot)
  */
 export function getPendingJobs(limit = 10) {
-  const db = getDb();
-  const now = Math.floor(Date.now() / 1000);
-  const rows = db.prepare(`
-    SELECT * FROM jobs
-    WHERE state = 'pending' AND next_run_at <= @now
-    ORDER BY created_at ASC
-    LIMIT @limit
-  `).all({ now, limit });
-  return rows;
+  return storage.fetchPendingJobs(limit);
 }
 
 /**
- * Utility to move a job to DLQ.
+ * Claim a job for a workerId (atomic)
  */
-export function moveToDlq(job, reason = "max retries exceeded") {
-  const db = getDb();
-  const insert = db.prepare(`
-    INSERT OR REPLACE INTO dlq (id, command, attempts, last_error, moved_at, original_created_at)
-    VALUES (@id, @command, @attempts, @last_error, @moved_at, @original_created_at)
-  `);
-  const del = db.prepare(`DELETE FROM jobs WHERE id = @id`);
-
-  const now = Math.floor(Date.now() / 1000);
-  const info = insert.run({
-    id: job.id,
-    command: job.command,
-    attempts: job.attempts,
-    last_error: reason,
-    moved_at: now,
-    original_created_at: job.created_at
-  });
-
-  del.run({ id: job.id });
-
-  logger.warn(`Job ${job.id} moved to DLQ: ${reason}`);
+export function claimJob(workerId) {
+  return storage.claimJobForWorker(workerId);
 }
 
 /**
- * Basic job state updater
+ * Mark job as completed, include stdout/stderr if available
  */
-export function updateJobState(id, fields = {}) {
-  const db = getDb();
-  const sets = [];
-  const params = { id };
-  let idx = 0;
-  for (const [k, v] of Object.entries(fields)) {
-    idx++;
-    sets.push(`${k} = @v${idx}`);
-    params[`v${idx}`] = v;
-  }
-  if (sets.length === 0) return;
-  // updated_at
-  sets.push(`updated_at = @updated_at`);
-  params.updated_at = Math.floor(Date.now() / 1000);
+export function completeJob(id, { stdout = null, stderr = null } = {}) {
+  storage.updateJobFields(id, { state: "completed", stdout, stderr });
+  logger.info(`Job ${id} completed`);
+}
 
-  const sql = `UPDATE jobs SET ${sets.join(", ")} WHERE id = @id`;
-  const stmt = db.prepare(sql);
-  return stmt.run(params);
+/**
+ * Handle failure: increment attempts, compute next_run_at externally
+ * The worker will compute delaySeconds and call this.
+ */
+export function failJobAndScheduleRetry(id, lastError = "", delaySeconds = 0) {
+  const updated = storage.incrementAttemptsAndSchedule(id, lastError, delaySeconds);
+  logger.info(`Job ${id} scheduled for retry in ${delaySeconds}s`);
+  return updated;
+}
+
+/**
+ * Move to DLQ (storage will delete from jobs)
+ */
+export function moveToDlq(id, reason = "max retries exceeded") {
+  storage.moveJobToDlq(id, reason);
+  logger.warn(`Job ${id} moved to DLQ: ${reason}`);
+}
+
+/**
+ * Expose DLQ helpers
+ */
+export function listDlq(limit = 100) {
+  return storage.listDlq(limit);
+}
+
+export function purgeDlq() {
+  return storage.purgeDlq();
 }
