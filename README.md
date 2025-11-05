@@ -1,8 +1,103 @@
-# queuectl
+# queuectl 🏗️ Architecture Overview
 
 `queuectl` — a CLI-based background job queue system built in Node.js.
 
+It manages shell-command `jobs`, persists them to `SQLite`, executes them in parallel using `worker pools`, retries failures with `exponential backoff`, and moves unrecoverable jobs to a Dead Letter Queue `(DLQ)`.
+
+## 🔩 Components
+
+| Component                    | Responsibility                                                    |
+|------------------------------|------------------------------------------------------------------ |
+| **CLI (commander)**          | Provides user interface (`enqueue`, `run`, `status`, `dlq`, etc.) |
+| **Job Manager**              | Business logic — enqueueing, retry, DLQ transfer                  |
+| **Storage (better-sqlite3)** | Persistent job store & atomic operations                          |
+| **Worker Pool**              | Executes shell commands via `child_process.exec()`                |
+| **Logger (winston)**         | Centralized structured logs                                       |
+| **Config (dotenv)**          | Centralized configuration for retries, polling, etc.              |
+
+## ⚙️ Job Lifecycle
+
+```text
+      ┌─────────────┐
+      │Enqueued Job │
+      └──────┬──────┘
+             │
+      state = "pending"
+             │
+             ▼
+    ┌────────────────────┐
+    │  Worker claims job │
+    │ (state=processing) │
+    └────────┬───────────┘
+             │
+             ▼
+      ┌──────────────┐
+      │ Execute Job  │
+      └──────┬───────┘
+             │
+             ▼
+  ┌─────────────────────┐
+  │    Job succeeded?   │
+  └───┬─────────────┬───┘
+      │             │
+  Yes ▼             ▼ No
+┌────────────┐   ┌────────────────┐
+│ Completed  │   │ Increment retry│
+│store stdout│   │                │
+└────────────┘   └───────┬────────┘
+                         │
+               attempts < max_retries ?
+                        │
+                        ▼
+                 ┌─────────────────┐
+                 │  Yes → schedule │
+                 │  next_run_at    │
+                 │(delay = base^n) │
+                 └───────┬─────────┘
+                         │
+                         ▼ No
+                 ┌──────────────────┐
+                 │ No → Move to DLQ │
+                 └──────────────────┘
+```
+## 🧪 Testing
+
+- Run automated test:
+
+  ```bash
+    git clone <repo-url> queuectl
+    cd queuectl
+  ```
+
+## ⚙️ Environment Variables
+
+| Variable                    | Description                | Default           |
+| --------------------------- | -------------------------- | ----------------- |
+| `QUEUECTL_DB_DIR`           | Directory for SQLite DB    | `./data`          |
+| `QUEUECTL_DB_PATH`          | Full DB path override      | `./data/queue.db` |
+| `QUEUECTL_LOG_LEVEL`        | Log verbosity              | `info`            |
+| `QUEUECTL_MAX_RETRIES`      | Default max retries        | `3`               |
+| `QUEUECTL_BACKOFF_BASE`     | Base for exponential retry | `2`               |
+| `QUEUECTL_POLL_INTERVAL_MS` | Worker poll interval       | `2000`            |
+| `QUEUECTL_LOCK_TIMEOUT_MS`  | Lock expiry timeout        | `60000`           |
+
+## 🧱 Tech Stack
+
+- Node.js (v18+)
+
+- commander — CLI framework
+
+- better-sqlite3 — Embedded persistence
+
+- winston — Logging
+
+- dotenv — Configuration
+
+- child_process — Job execution
+
+
 This repository will be developed incrementally. This is the **Step 1** snapshot: project skeleton, base CLI, config, SQLite setup, and logger.
+#
 
 ## ✅ Features implemented so far (Step 1)
 
@@ -57,6 +152,18 @@ This repository will be developed incrementally. This is the **Step 1** snapshot
 
   ```bash
   queuectl status
+  ```
+
+- View DLQ jobs
+
+  ```bash
+  queuectl dlq list
+  ```
+
+- Purge DLQ
+
+  ```bash
+  queuectl dlq purge
   ```
 
 ## Database / Persistence (Step 2)
@@ -138,8 +245,13 @@ After the maximum retries (`max_retries`) are exceeded, the job is moved to the 
       │Enqueued Job │
       └──────┬──────┘
              │
+      state = "pending"
+             │
              ▼
-       (worker claims)
+    ┌────────────────────┐
+    │  Worker claims job │
+    │ (state=processing) │
+    └────────┬───────────┘
              │
              ▼
       ┌──────────────┐
@@ -152,23 +264,24 @@ After the maximum retries (`max_retries`) are exceeded, the job is moved to the 
   └───┬─────────────┬───┘
       │             │
   Yes ▼             ▼ No
-┌─────────┐   ┌───────────────┐
-│Completed│   │Increment retry│
-└─────────┘   └───────┬───────┘
-                      │
-             attempts < max_retries ?
-                      │
-                      ▼
-              ┌─────────────────┐
-              │  Yes → schedule │
-              │  next_run_at    │
-              │(delay = base^n) │
-              └───────┬─────────┘
-                      │
-                      ▼
-              ┌──────────────────┐
-              │ No → Move to DLQ │
-              └──────────────────┘
+┌────────────┐   ┌────────────────┐
+│ Completed  │   │ Increment retry│
+│store stdout│   │                │
+└────────────┘   └───────┬────────┘
+                         │
+               attempts < max_retries ?
+                        │
+                        ▼
+                 ┌─────────────────┐
+                 │  Yes → schedule │
+                 │  next_run_at    │
+                 │(delay = base^n) │
+                 └───────┬─────────┘
+                         │
+                         ▼ No
+                 ┌──────────────────┐
+                 │ No → Move to DLQ │
+                 └──────────────────┘
 ```
 
 ## Dead Letter Queue (Step 6)
