@@ -189,3 +189,10 @@ queuectl dlq list
 queuectl dlq purge
 ```
 
+## Status & Configuration Commands (Step 7)
+
+### View Queue Summary
+
+```bash
+queuectl status
+```

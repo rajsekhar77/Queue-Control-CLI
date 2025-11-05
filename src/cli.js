@@ -3,10 +3,10 @@ import { Command } from "commander";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { initDb } from "./storage.js";
-import { getPendingJobs } from "./jobManager.js";
 import { handleEnqueue } from "./commands/enqueue.js";
 import { startWorkerPool } from "./worker.js";
 import { handleDlqList, handleDlqPurge } from "./commands/dlq.js";
+import { handleStatus } from "./commands/status.js";
 
 const program = new Command();
 
@@ -46,18 +46,7 @@ program
 program
   .command("status")
   .description("Show basic queue status (pending jobs).")
-  .action(() => {
-    const rows = getPendingJobs(10);
-    console.log("\n📋 Pending jobs:");
-    if (rows.length === 0) {
-      console.log("No pending jobs.\n");
-      return;
-    }
-    rows.forEach(r => {
-      console.log(`• ${r.id} | ${r.command} | attempts=${r.attempts} | state=${r.state}`);
-    });
-    console.log("");
-  });
+  .action(() => handleStatus());
 
 // --- DLQ COMMAND (placeholder) ---
 const dlq = program
@@ -79,8 +68,11 @@ program
   .command("config")
   .description("Show effective configuration")
   .action(() => {
-    console.log("Config:");
-    console.log(JSON.stringify(config, null, 2));
+    console.log("\n⚙️  Current Configuration\n---------------------------");
+    for (const [key, val] of Object.entries(config)) {
+      console.log(`${key.padEnd(25)} : ${val}`);
+    }
+    console.log("");
   });
 
 program.parseAsync(process.argv).catch(err => {
