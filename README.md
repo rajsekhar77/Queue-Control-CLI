@@ -35,19 +35,19 @@ This repository will be developed incrementally. This is the **Step 1** snapshot
 
 - Show help:
   ```bash
-  node ./src/cli.js --help
+  queuectl --help
   ```
 - Enqueue a job (example):
   ```bash
-  node ./src/cli.js enqueue "echo 'Hello world'" --max-retries=3
+  queuectl enqueue "echo 'Hello world'" --max-retries=3
   ```
 - Show configuration:
   ```bash
-  node ./src/cli.js config
+  queuectl config
   ```
 - Show pending jobs (basic preview):
   ```bash
-  node ./src/cli.js status
+  queuectl status
 ```
 
 ## Database / Persistence (Step 2)

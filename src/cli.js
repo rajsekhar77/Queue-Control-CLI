@@ -3,7 +3,8 @@ import { Command } from "commander";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { initDb } from "./storage.js";
-import { enqueueJob, getPendingJobs } from "./jobManager.js";
+import { getPendingJobs } from "./jobManager.js";
+import { handleEnqueue } from "./commands/enqueue.js";
 
 const program = new Command();
 
@@ -20,38 +21,43 @@ program
     logger.info(`Running command: ${thisCommand.name()} ${actionCommand.name()}`);
   });
 
+// --- ENQUEUE COMMAND ---
 program
   .command("enqueue <command...>")
   .description("Enqueue a shell command to run as a job (wrap the command in quotes).")
   .option("--max-retries <n>", "maximum retries for this job", String(config.DEFAULT_MAX_RETRIES))
   .action((commandParts, opts) => {
-    const command = commandParts.join(" ");
-    const maxRetries = Number(opts.maxRetries ?? config.DEFAULT_MAX_RETRIES);
-    const id = enqueueJob({ command, max_retries: maxRetries });
-    console.log(`Enqueued job ${id}`);
+    handleEnqueue(commandParts, opts)
   });
 
+// --- RUN COMMAND ---
 program
   .command("run")
-  .description("Run workers to process jobs (stub in Step 1).")
+  .description("Run workers to process jobs.")
   .option("--workers <n>", "number of worker loops to start", "1")
   .action((opts) => {
     const workers = Number(opts.workers || 1);
-    console.log(`run command invoked (stub). workers=${workers}`);
-    console.log("Worker implementation coming in Step 4.");
+    console.log(`Run command invoked (stub). Workers=${workers}`);
   });
 
+// --- STATUS COMMAND ---
 program
   .command("status")
-  .description("Show basic queue status (stub).")
+  .description("Show basic queue status (pending jobs).")
   .action(() => {
-    const rows = getPendingJobs(5);
-    console.log("Pending jobs (up to 5):");
-    for (const r of rows) {
-      console.log(`- ${r.id} | ${r.command} | attempts=${r.attempts} | next_run_at=${new Date(r.next_run_at * 1000).toISOString()}`);
+    const rows = getPendingJobs(10);
+    console.log("\n📋 Pending jobs:");
+    if (rows.length === 0) {
+      console.log("No pending jobs.\n");
+      return;
     }
+    rows.forEach(r => {
+      console.log(`• ${r.id} | ${r.command} | attempts=${r.attempts} | state=${r.state}`);
+    });
+    console.log("");
   });
 
+// --- DLQ COMMAND (placeholder) ---
 program
   .command("dlq")
   .description("DLQ management (list, purge) — coming soon.")
@@ -59,6 +65,7 @@ program
     console.log("dlq commands coming in Step 6.");
   });
 
+// --- CONFIG COMMAND ---
 program
   .command("config")
   .description("Show effective configuration")
