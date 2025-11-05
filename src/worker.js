@@ -10,6 +10,7 @@ import {
   failJobAndScheduleRetry,
   moveToDlq
 } from "./jobManager.js";
+import { computeBackoffDelay } from "./utils/backoff.js";
 
 /**
  * Worker Pool
@@ -74,21 +75,23 @@ export async function startWorkerPool({ workers = 1 } = {}) {
  */
 async function processJob(job, workerName) {
   return new Promise((resolve) => {
-    logger.info(`${workerName} executing: ${job.command}`);
+    logger.info(`${workerName} ▶️ Executing job ${job.id}: ${job.command}`);
 
+    const startTime = Date.now();
     const child = exec(job.command, { timeout: 30000 }, (error, stdout, stderr) => {
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
       if (!error) {
-        logger.info(`${workerName} ✅ Job ${job.id} completed successfully.`);
         completeJob(job.id, { stdout, stderr });
+        logger.info(`${workerName} ✅ Job ${job.id} completed successfully in ${duration}s`);
         return resolve();
       }
 
-      // Job failed
       const lastError = error.message || "Unknown error";
-      logger.warn(`${workerName} ❌ Job ${job.id} failed: ${lastError}`);
-
       const attempts = job.attempts + 1;
       const maxRetries = job.max_retries;
+
+      logger.warn(`${workerName} ❌ Job ${job.id} failed (attempt ${attempts}/${maxRetries}): ${lastError}`);
 
       if (attempts >= maxRetries) {
         moveToDlq(job.id, lastError);
@@ -96,20 +99,18 @@ async function processJob(job, workerName) {
         return resolve();
       }
 
-      // Retry with exponential backoff
-      const delaySeconds = Math.pow(config.BACKOFF_BASE, attempts);
+      // Compute exponential backoff
+      const delaySeconds = computeBackoffDelay(attempts);
       failJobAndScheduleRetry(job.id, lastError, delaySeconds);
-      logger.info(`${workerName} 🔁 Scheduled retry in ${delaySeconds}s (attempt ${attempts}/${maxRetries})`);
+
+      logger.info(
+        `${workerName} 🔁 Retrying job ${job.id} in ${delaySeconds}s (attempt ${attempts}/${maxRetries})`
+      );
       resolve();
     });
 
-    child.stdout?.on("data", (data) => {
-      process.stdout.write(`[${workerName}] ${data}`);
-    });
-
-    child.stderr?.on("data", (data) => {
-      process.stderr.write(`[${workerName} ERROR] ${data}`);
-    });
+    child.stdout?.on("data", (data) => process.stdout.write(`[${workerName}] ${data}`));
+    child.stderr?.on("data", (data) => process.stderr.write(`[${workerName} ERROR] ${data}`));
   });
 }
 

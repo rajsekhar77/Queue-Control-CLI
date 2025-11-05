@@ -40,16 +40,19 @@ This repository will be developed incrementally. This is the **Step 1** snapshot
   ```bash
   queuectl --help
   ```
+
 - Enqueue a job (example):
 
   ```bash
   queuectl enqueue "echo 'Hello world'" --max-retries=3
   ```
+
 - Show configuration:
 
   ```bash
   queuectl config
   ```
+
 - Show pending jobs (basic preview):
 
   ```bash
@@ -63,6 +66,7 @@ This repository will be developed incrementally. This is the **Step 1** snapshot
 ### Schema (essential columns)
 
 #### `jobs`
+
 - `id` TEXT PRIMARY KEY — UUID assigned to the job.
 - `command` TEXT — Shell command to run.
 - `state` TEXT — `pending` or `processing`.
@@ -75,14 +79,17 @@ This repository will be developed incrementally. This is the **Step 1** snapshot
 - `created_at`, `updated_at` INTEGER — timestamps.
 
 #### `dlq`
+
 - `id`, `command`, `attempts`, `last_error`, `moved_at`, `original_created_at`
 
 ### Persistence guarantees
+
 - Writes are performed to SQLite using `better-sqlite3`. The DB is created automatically on first run.
 - Key operations (claiming a job, moving to DLQ) use SQLite transactions for atomicity.
 - Jobs persist across restarts — stop and start the `queuectl run` worker and pending jobs will remain.
 
 ### Developer notes
+
 - `src/storage.js` exposes:
   - `insertJob({ id, command, max_retries, next_run_at })`
   - `fetchPendingJobs(limit)`
@@ -99,4 +106,67 @@ Run workers to process queued jobs.
 
 ```bash
 queuectl run --workers=3
-````
+```
+
+## Retry Logic (Step 5)
+
+When a job fails, it is **retried automatically** using an exponential backoff strategy.
+
+### Formula
+
+delay = BACKOFF_BASE \*\* attempts
+
+For example, if `BACKOFF_BASE=2` and the job failed 3 times:
+
+- Retry 1 → after 2 seconds
+- Retry 2 → after 4 seconds
+- Retry 3 → after 8 seconds
+
+After the maximum retries (`max_retries`) are exceeded, the job is moved to the **DLQ**.
+
+### Environment variables controlling retry
+
+| Variable                | Description              | Default |
+| ----------------------- | ------------------------ | ------- |
+| `QUEUECTL_BACKOFF_BASE` | Exponential backoff base | 2       |
+| `QUEUECTL_MAX_RETRIES`  | Default max retries      | 3       |
+
+### Retry Flow Diagram
+
+```text
+      ┌─────────────┐
+      │Enqueued Job │
+      └──────┬──────┘
+             │
+             ▼
+       (worker claims)
+             │
+             ▼
+      ┌──────────────┐
+      │ Execute Job  │
+      └──────┬───────┘
+             │
+             ▼
+  ┌─────────────────────┐
+  │    Job succeeded?   │
+  └───┬─────────────┬───┘
+      │             │
+  Yes ▼             ▼ No
+┌─────────┐   ┌───────────────┐
+│Completed│   │Increment retry│
+└─────────┘   └───────┬───────┘
+                      │
+             attempts < max_retries ?
+                      │
+                      ▼
+              ┌─────────────────┐
+              │  Yes → schedule │
+              │  next_run_at    │
+              │(delay = base^n) │
+              └───────┬─────────┘
+                      │
+                      ▼
+              ┌──────────────────┐
+              │ No → Move to DLQ │
+              └──────────────────┘
+```
