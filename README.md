@@ -1,4 +1,4 @@
-# queuectl 🏗️ Architecture Overview
+# QueueCTL 🏗️ Architecture Overview
 
 `QueueCTL` — a CLI-based background job queue system built in Node.js.
 
@@ -65,8 +65,8 @@ It manages shell-command `jobs`, persists them to `SQLite`, executes them in par
 - Run automated test:
 
   ```bash
-    chmod +x scripts/test_basic_flow.sh
-    ./scripts/test_basic_flow.sh
+  chmod +x scripts/test_basic_flow.sh
+  ./scripts/test_basic_flow.sh
   ```
 
 ## ⚙️ Environment Variables
