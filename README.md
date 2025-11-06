@@ -4,6 +4,11 @@
 
 It manages shell-command `jobs`, persists them to `SQLite`, executes them in parallel using `worker pools`, retries failures with `exponential backoff`, and moves unrecoverable jobs to a Dead Letter Queue `(DLQ)`.
 
+## 🎥 Demo
+
+Watch the project demo here: 
+👉 [**View Demo on Google Drive**](https://drive.google.com/drive/folders/1pBVDKPqI3R5B5ClAVY2s7VPFYXJq_SEr?usp=sharing)
+
 ## 🔩 Components
 
 | Component                    | Responsibility                                                    |
